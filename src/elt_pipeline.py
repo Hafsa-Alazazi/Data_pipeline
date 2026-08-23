@@ -1,20 +1,3 @@
-"""
-src/elt_pipeline.py
----------------------
-يُنفّذ المراحل 4-6-7 من معمارية القسم 4 من الوثيقة:
-    4) Quality & Transform : تطبيق quality_rules.classify_record على كل سجل خام
-    5) Classification      : تصنيف كل سجل إلى Valid/Corrected/Quarantined
-    6) Final Load          : كتابة Upsert إلى orders_validated و orders_quarantine
-    7) Idempotency Check   : التحقق من معادلة الاتساق (القسم 6.11)
-
-مبدأ التصميم (القسم 9): هذا الملف "يُنسّق" فقط بين القراءة، التنظيف،
-والكتابة، لكن منطق التنظيف نفسه معزول بالكامل في quality_rules.py، ومنطق
-الاتصال بقاعدة البيانات معزول في mongo_setup.py.
-
-ملاحظة Streaming: نقرأ السجلات من orders_raw عبر Cursor (لا نحمّلها كلها
-دفعة واحدة في الذاكرة)، ونكتب النتائج على دفعات (bulk_write) بنفس مبدأ
-BATCH_SIZE المستخدم في batch_loader.py.
-"""
 
 import hashlib
 import json
@@ -32,13 +15,7 @@ from src.quality_rules import classify_record
 
 
 def _compute_content_hash(cleaned: dict, quality_status: str, corrections: list) -> str:
-    """
-    يحسب بصمة (SHA-256) لمحتوى السجل "التجاري" فقط (القيم الفعلية +
-    حالة الجودة + التصحيحات)، بدون أي حقول وصفية متغيرة مثل الوقت أو
-    id_run. هذه البصمة هي التي تحدد إن كان السجل "تغيّر فعليًا" أم لا،
-    بدل الاعتماد على وجود عملية Upsert وحدها (التي تُنفَّذ دائمًا حتى
-    لو كانت القيم متطابقة).
-    """
+    
     payload = {
         "cleaned": {k: v for k, v in cleaned.items() if k != "order_id"},
         "quality_status": quality_status,
@@ -50,31 +27,16 @@ def _compute_content_hash(cleaned: dict, quality_status: str, corrections: list)
 
 def _build_validated_update(id_order: str, cleaned: dict, quality_status: str,
                              corrections: list, id_run: str) -> UpdateOne:
-    """
-    يبني عملية Upsert شرطية (Pipeline Update) على orders_validated:
-      - إذا كانت البصمة (content_hash) الجديدة مطابقة للبصمة المخزنة
-        مسبقًا، فلا نُغيّر updated_at ولا last_id_run إطلاقًا، فتُحسب
-        MongoDB الوثيقة كـ "غير معدّلة" (Unchanged) بدقة.
-      - إذا اختلفت البصمة (سجل جديد أو تغيّرت قيمه فعليًا)، نُحدّث كل
-        الحقول بما فيها updated_at و last_id_run.
-
-    هذا هو ما يجعل عدادات count_updated/count_unchanged في القسم 6.12
-    ذات معنى حقيقي، بدل أن تكون كل عملية "update" دائمًا بسبب طابع
-    زمني متغيّر لا علاقة له بالحالة التجارية الفعلية للسجل.
-    """
+    
     content_hash = _compute_content_hash(cleaned, quality_status, corrections)
     now = datetime.now(timezone.utc)
 
     content_fields = dict(cleaned)
 
-    # إصلاح #1: cleaned يحتوي دائمًا items_json (السلسلة النصية الخام من
-    # CSV) و items (القائمة المُحلَّلة) معًا بنفس المعلومة مكررة. نُبقي
-    # items فقط في orders_validated (هي الصيغة المفيدة فعليًا للاستعلام).
+    
     content_fields.pop("items_json", None)
 
-    # إصلاح #2: cleaned يحتوي order_id (اسم عمود CSV الأصلي) و سنضيف
-    # id_order بالأسفل (اسم Business Key الرسمي حسب القسم 6.10) بنفس
-    # القيمة. نحذف order_id لتفادي وجود حقلين مكررين بنفس المعنى.
+    
     content_fields.pop("order_id", None)
 
     content_fields["id_order"] = id_order
@@ -100,14 +62,7 @@ def _build_validated_update(id_order: str, cleaned: dict, quality_status: str,
 
 
 def _build_quarantine_doc(raw_doc: dict, codes: list, corrections: list, id_run: str) -> dict:
-    """
-    يبني وثيقة orders_quarantine وفق القسم 6.9: يجب أن تحتوي codes_error
-    وdetails_error والسجل الخام كاملاً (record_raw) لعدم فقدان أي بيانات.
-
-    codes: قائمة أسباب (وليس رمزًا واحدًا)، لأن نفس السجل قد يُعزل لأكثر
-    من سبب بنفس الوقت (مثل ERRORS_CONFLICTING_MULTIPLE، أو سجل مكرر
-    id_order وله أيضًا سبب عزل أصلي آخر — انظر إصلاح #4 في run_elt).
-    """
+    
     if isinstance(codes, str):
         codes = [codes]
 
@@ -143,20 +98,7 @@ def _describe_quarantine_code(code: str) -> str:
 
 
 def _get_duplicate_order_ids(raw_col, id_run: str) -> set:
-    """
-    يكتشف كل id_order الذي يظهر أكثر من مرة داخل نفس id_run، عبر تجميع
-    (Aggregation) يُنفَّذ على خادم MongoDB مباشرة (لا نحمّل السجلات
-    كاملة للذاكرة لهذا الفحص، فقط قيم المعرفات).
-
-    السبب: نفس id_order قد يظهر أكثر من مرة في نفس الملف (بيانات قذرة
-    حقيقية)، والوثيقة (القسم 6.8) تنص أن هذه الحالة "تحتاج سياسة دمج أو
-    مراجعة" وليس حلاً تلقائيًا اعتباطيًا. لذلك نعزل كل نسخها بدل ترك
-    آخر نسخة "تفوز" بشكل غير حتمي (يعتمد على ترتيب القراءة من Mongo
-    الذي لا يُضمن ثباته بين تشغيل وآخر) — وهذا ما كان يكسر Idempotency.
-
-    نتعامل مع احتمال وجود رمز BOM في اسم الحقل الأول (order_id) بسبب
-    ملفات CSV قديمة عبر $ifNull بين الاسمين المحتملين.
-    """
+    
     pipeline = [
         {"$match": {"id_run": id_run}},
         {
@@ -171,11 +113,7 @@ def _get_duplicate_order_ids(raw_col, id_run: str) -> set:
 
 
 def run_elt(id_run: str) -> dict:
-    """
-    الدالة الرئيسية: تقرأ كل سجلات orders_raw الخاصة بـ id_run معيّن،
-    تصنّفها، وتكتب النتائج بدفعات إلى orders_validated (Upsert) و
-    orders_quarantine، ثم تتحقق من اتساق العدادات (القسم 6.11).
-    """
+    
     db = get_database()
     raw_col = db[settings.COLLECTION_RAW]
     validated_col = db[settings.COLLECTION_VALIDATED]
@@ -197,7 +135,7 @@ def run_elt(id_run: str) -> dict:
     validated_ops_buffer = []
     quarantine_docs_buffer = []
 
-    # فحص أولي (مرة واحدة، عبر الخادم) لكل id_order مكرر داخل هذا التشغيل
+    
     duplicate_order_ids = _get_duplicate_order_ids(raw_col, id_run)
     if duplicate_order_ids:
         print(f"[elt_pipeline] ⚠️ تم اكتشاف {len(duplicate_order_ids)} معرف طلب مكرر داخل هذا التشغيل، سيُعزل جميعها.")
@@ -208,18 +146,13 @@ def run_elt(id_run: str) -> dict:
         counters["run_raw_count"] += 1
         result = classify_record(raw_doc.get("record_raw", {}))
 
-        # تجاوز فوري إلى Quarantine لو كان id_order ضمن المكررات، بغض
-        # النظر عن نتيجة classify_record الأصلية (حتى لو كان "صالحًا")
+       
         record_order_id = raw_doc.get("record_raw", {}).get("order_id") or \
             raw_doc.get("record_raw", {}).get("\ufefforder_id")
         if record_order_id in duplicate_order_ids:
             counters["count_quarantine"] += 1
 
-            # إصلاح #4: لو كان السجل أصلًا معزولاً لسبب آخر (مثلاً سعر
-            # سالب)، القرار القديم كان يستبدل السبب الأصلي بـ
-            # ID_ORDER_DUPLICATE ويفقده تمامًا من codes_error. الآن نجمع
-            # الاثنين معًا: سبب التكرار + كل الأسباب الجوهرية الأصلية إن
-            # وُجدت.
+            
             codes = ["ID_ORDER_DUPLICATE"]
             if result["quality_status"] == "quarantined":
                 codes.extend(result.get("quarantine_codes") or [result["quarantine_code"]])
@@ -261,7 +194,7 @@ def run_elt(id_run: str) -> dict:
             quarantine_col.insert_many(quarantine_docs_buffer)
             quarantine_docs_buffer = []
 
-    # تفريغ ما تبقى في المخازن المؤقتة
+    
     if validated_ops_buffer:
         _flush_validated(validated_col, validated_ops_buffer, counters)
     if quarantine_docs_buffer:
@@ -269,7 +202,7 @@ def run_elt(id_run: str) -> dict:
 
     elapsed = time.time() - start_time
 
-    # ---- القسم 6.11: التحقق من معادلة الاتساق ----
+    
     expected_total = counters["count_valid"] + counters["count_corrected"] + counters["count_quarantine"]
     consistency_ok = expected_total == counters["run_raw_count"]
 

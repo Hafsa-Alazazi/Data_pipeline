@@ -1,21 +1,3 @@
-"""
-src/batch_loader.py
----------------------
-محرك التحميل الدفعي (Batch Loading) باستخدام Python الخام، يُستخدم فقط
-عندما يختار File Router هذا المحرك (ملفات <= SMALL_FILE_THRESHOLD_MB).
-
-المبادئ الملزمة حسب القسم 6.3:
-    - قراءة CSV بصورة Streaming (module csv)، وليس reader(list) أو تحميل
-      الملف كاملاً إلى الذاكرة.
-    - تجميع السجلات في دفعات (batches) قابلة للضبط، ثم insert_many.
-    - طباعة رقم الدفعة، عدد السجلات، الزمن، ومعدل الإدخال لكل دفعة.
-    - معالجة خطأ الدفعة وتسجيله دون إخفاء سبب الفشل (لا نستخدم except: pass).
-
-المبدأ الملزم حسب القسم 6.5 (ELT):
-    - كل سجل يُكتب في orders_raw كما وصل تمامًا (record_raw)، دون أي
-      تحويل أو تصحيح أو حذف. التنظيف يحدث لاحقًا في مرحلة منفصلة
-      (quality_rules.py / elt_pipeline.py).
-"""
 
 import csv
 import os
@@ -31,29 +13,19 @@ from src.mongo_setup import get_database
 
 
 def _build_raw_document(row: dict, row_number: int, run_context: dict) -> dict:
-    """
-    يبني وثيقة orders_raw وفق الحقول المطلوبة حرفيًا في القسم 6.5:
-        id_run, file_source, number_row_source, at_ingested,
-        engine_used, record_raw
-    """
+   
     return {
         "id_run": run_context["id_run"],
         "file_source": run_context["file_path"],
         "number_row_source": row_number,
         "at_ingested": datetime.now(timezone.utc),
         "engine_used": "python_batch",
-        "record_raw": row,  # القيم الخام كما هي دون أي تعديل
+        "record_raw": row,  
     }
 
 
 def load_batches(file_path: str, run_context: dict) -> dict:
-    """
-    يقرأ ملف CSV سطرًا بسطر عبر csv.DictReader (Streaming حقيقي)، يجمّع
-    السجلات بدفعات بحجم settings.BATCH_SIZE، ويكتبها إلى orders_raw
-    باستخدام insert_many لكل دفعة.
-
-    يعيد ملخص المقاييس المطلوب في القسم 6.12 (read_rows, loaded_raw, ...).
-    """
+    
     db = get_database()
     raw_collection = db[settings.COLLECTION_RAW]
 
@@ -78,7 +50,7 @@ def load_batches(file_path: str, run_context: dict) -> dict:
                 total_loaded += inserted
                 batch = []
 
-        # إدخال آخر دفعة متبقية (أصغر من BATCH_SIZE) إن وجدت
+        
         if batch:
             inserted, batch_number = _flush_batch(
                 raw_collection, batch, batch_number, start_time, failed_batches
@@ -112,12 +84,7 @@ def load_batches(file_path: str, run_context: dict) -> dict:
 
 
 def _flush_batch(collection, batch, batch_number, start_time, failed_batches):
-    """
-    يكتب دفعة واحدة إلى MongoDB عبر insert_many، ويطبع تقدمها.
-    عند فشل الدفعة: يُسجَّل الخطأ بوضوح (بدون إخفائه) ويُكمل التنفيذ
-    للدفعات التالية بدل توقف البرنامج بالكامل، مع الاحتفاظ بتفاصيل
-    الفشل داخل التقرير النهائي (لا يجوز إسقاط السجلات بصمت).
-    """
+    
     batch_number += 1
     batch_start = time.time()
 
@@ -126,7 +93,7 @@ def _flush_batch(collection, batch, batch_number, start_time, failed_batches):
         inserted_count = len(result.inserted_ids)
         status = "OK"
     except BulkWriteError as exc:
-        # بعض السجلات نجحت وبعضها فشل: ordered=False يسمح بإدخال الباقي
+       
         inserted_count = exc.details.get("nInserted", 0)
         status = "PARTIAL_FAILURE"
         failed_batches.append(
@@ -138,7 +105,7 @@ def _flush_batch(collection, batch, batch_number, start_time, failed_batches):
             }
         )
         print(f"[batch_loader] ⚠️ خطأ في الدفعة رقم {batch_number}: {exc}")
-    except Exception as exc:  # أي خطأ اتصال أو غيره: يُسجَّل ولا يُخفى
+    except Exception as exc:  
         inserted_count = 0
         status = "FAILED"
         failed_batches.append(
@@ -168,7 +135,7 @@ def _flush_batch(collection, batch, batch_number, start_time, failed_batches):
 
 
 if __name__ == "__main__":
-    # اختبار مستقل لمحرك Batch وحده (دون المرور عبر main.py الكامل)
+    
     import argparse
     from src.file_router import route_file
 

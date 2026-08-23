@@ -1,19 +1,3 @@
-"""
-src/create_small_sample.py
-----------------------------
-يستخرج عينة صغيرة قابلة لإعادة الإنتاج من ملف CSV الضخم، دون تحميل الملف
-الأصلي بالكامل إلى الذاكرة في أي لحظة (قراءة Streaming سطرًا بسطر فقط).
-
-الاستخدام:
-    python src/create_small_sample.py --input data/orders_huge_mixed_quality.csv --rows 100000
-
-    أو تحديد مسار الإخراج يدويًا:
-    python src/create_small_sample.py --input data/orders_huge_mixed_quality.csv \
-        --rows 50000 --output data/orders_sample_small.csv
-
-ملاحظة: يمنع إنشاء العينة يدويًا عبر Excel أو أي أداة تحرير يدوية؛ هذا
-السكربت هو الطريقة الوحيدة المعتمدة والقابلة لإعادة التنفيذ (Reproducible).
-"""
 
 import argparse
 import csv
@@ -21,16 +5,13 @@ import os
 import sys
 import time
 
-# السماح باستيراد config عند تشغيل الملف مباشرة من مجلد src
+
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from config import settings
 
 
 def create_small_sample(input_path: str, output_path: str, n_rows: int) -> dict:
-    """
-    يقرأ ملف CSV الضخم سطرًا بسطر (Streaming) ويكتب أول n_rows سطر (بعد الهيدر)
-    إلى ملف جديد. لا يتم في أي لحظة تحميل الملف كاملاً إلى الذاكرة.
-    """
+    
     if not os.path.exists(input_path):
         raise FileNotFoundError(f"الملف غير موجود: {input_path}")
 
@@ -43,7 +24,7 @@ def create_small_sample(input_path: str, output_path: str, n_rows: int) -> dict:
         reader = csv.reader(infile)
         writer = csv.writer(outfile)
 
-        # كتابة الهيدر كما هو (أول سطر فقط)
+        
         header = next(reader)
         writer.writerow(header)
 

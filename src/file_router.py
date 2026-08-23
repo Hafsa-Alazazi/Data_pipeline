@@ -1,13 +1,4 @@
-"""
-src/file_router.py
---------------------
-نقطة القرار الوحيدة في المشروع لاختيار محرك المعالجة (Python Batch أو PySpark)
-بناءً على حجم الملف مقارنة بـ SMALL_FILE_THRESHOLD_MB.
 
-هذا الملف لا يحتوي منطق معالجة فعلي؛ فقط "يقرر" ثم يستدعي المحرك المناسب.
-منطق المعالجة الحقيقي موجود في batch_loader.py و spark_loader.py بشكل منفصل
-(فصل الاهتمامات - Separation of Concerns، مطلوب في القسم 9).
-"""
 
 import os
 import sys
@@ -19,11 +10,7 @@ from config import settings
 
 
 def generate_run_id() -> str:
-    """
-    يولّد معرف فريد لكل عملية تشغيل (id_run)، يُستخدم لربط كل السجلات
-    (raw / validated / quarantine) بنفس عملية التشغيل التي أنتجتها،
-    ولتطبيق معادلة الاتساق في القسم 6.11.
-    """
+    
     timestamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S")
     short_uuid = uuid.uuid4().hex[:8]
     return f"run_{timestamp}_{short_uuid}"
@@ -37,29 +24,14 @@ def get_file_size_mb(file_path: str) -> float:
 
 
 def choose_engine(file_size_mb: float) -> str:
-    """
-    منطق القرار المطلوب حرفيًا في القسم 6.2 من الوثيقة:
-
-        if file_size_mb <= SMALL_FILE_THRESHOLD_MB:
-            engine = "python_batch"
-        else:
-            engine = "pyspark"
-    """
+    
     if file_size_mb <= settings.SMALL_FILE_THRESHOLD_MB:
         return "python_batch"
     return "pyspark"
 
 
 def route_file(file_path: str) -> dict:
-    """
-    الدالة الرئيسية للـ Router:
-      1. يفحص حجم الملف.
-      2. يقرر المحرك.
-      3. يطبع القرار وسببه (إلزامي حسب الوثيقة).
-      4. يولّد id_run لهذه العملية.
-      5. يعيد كل هذه المعلومات كـ "سياق تشغيل" (run_context) تُمرَّر
-         للمراحل التالية من الـ Pipeline.
-    """
+    
     file_size_mb = get_file_size_mb(file_path)
     engine = choose_engine(file_size_mb)
     id_run = generate_run_id()
@@ -91,7 +63,7 @@ def route_file(file_path: str) -> dict:
 
 
 if __name__ == "__main__":
-    # اختبار سريع مستقل للـ Router دون تشغيل باقي الـ Pipeline
+    
     import argparse
 
     parser = argparse.ArgumentParser(description="اختبار مستقل لـ File Router")

@@ -1,15 +1,3 @@
-"""
-tests/test_classification.py
--------------------------------
-اختبارات لدالة التصنيف الكاملة classify_record في src/quality_rules.py،
-تُشغَّل عبر pytest:
-
-    pytest tests/test_classification.py -v
-
-تغطي المسارات الثلاثة (Valid / Corrected / Quarantine) وأكواد العزل
-الرئيسية المذكورة في القسم 6.8 من الوثيقة، بالإضافة إلى معادلة الاتساق
-(القسم 6.11): كل سجل يجب أن ينتهي إلى نتيجة واحدة فقط بالضبط.
-"""
 
 import os
 import sys
@@ -19,12 +7,7 @@ from src.quality_rules import classify_record
 
 
 def _base_record(**overrides) -> dict:
-    """سجل أساسي كامل وصالح 100%، تُبنى عليه بقية الاختبارات بالتعديل الجزئي."""
-    # ملاحظة: القيم هنا مكتوبة أصلاً بصيغتها النهائية المُطبَّعة (ISO date,
-    # status بالإنجليزية القياسية...) حتى لا يُطبَّق أي تصحيح على السجل
-    # "الأساسي" نفسه - فيبقى صالحًا للاستخدام كأساس نظيف 100% في اختبار
-    # test_fully_clean_record_classified_as_valid، بينما بقية الاختبارات
-    # تُدخل عمدًا قيمًا غير نظيفة عبر overrides لتوليد تصحيح أو عزل محدد.
+    
     record = {
         "order_id": "طلب-1",
         "order_date": "2025-01-31T00:00:00",
@@ -48,9 +31,7 @@ def _base_record(**overrides) -> dict:
     return record
 
 
-# --------------------------------------------------------------------------
-# مسار Valid
-# --------------------------------------------------------------------------
+
 
 def test_fully_clean_record_classified_as_valid():
     """سجل سليم 100% منذ البداية يجب ألا يمر بأي تصحيح، ويُصنَّف valid."""
@@ -61,15 +42,10 @@ def test_fully_clean_record_classified_as_valid():
     assert result["cleaned_record"] is not None
 
 
-# --------------------------------------------------------------------------
-# مسار Corrected + Audit Trail
-# --------------------------------------------------------------------------
+
 
 def test_arabic_price_triggers_correction_with_audit_trail():
-    """
-    سجل فيه سعر بأرقام عربية يجب أن يُصحَّح تلقائيًا، ويُسجَّل التصحيح
-    بصيغة القسم 6.7 بالضبط: field, original_value, corrected_value, rule_code.
-    """
+    
     record = _base_record(payment_amount="٥٠٠٠")
     result = classify_record(record)
 
@@ -92,9 +68,7 @@ def test_repeated_email_symbol_triggers_correction():
     assert correction["rule_code"] == "EMAIL_REPEATED_SYMBOLS"
 
 
-# --------------------------------------------------------------------------
-# مسار Quarantine - أخطاء جوهرية مفردة
-# --------------------------------------------------------------------------
+
 
 def test_missing_order_id_quarantined():
     record = _base_record(order_id="")
@@ -126,10 +100,7 @@ def test_empty_items_quarantined():
 
 
 def test_negative_quantity_inside_items_quarantined():
-    """
-    اختبار انحدار (Regression Test): سجلات فيها كمية سالبة داخل items_json
-    (مثل qty: -2) كانت تمر بدون عزل قبل الإصلاح. يجب أن تُعزل دائمًا.
-    """
+    
     record = _base_record(items_json='[{"unit_price": 100, "qty": -2}]')
     result = classify_record(record)
     assert result["quality_status"] == "quarantined"
@@ -150,17 +121,10 @@ def test_unfixable_email_quarantined():
     assert result["quarantine_code"] == "EMAIL_UNFIXABLE"
 
 
-# --------------------------------------------------------------------------
-# مسار Quarantine - أخطاء جوهرية متعددة (ERRORS_CONFLICTING_MULTIPLE)
-# --------------------------------------------------------------------------
+
 
 def test_multiple_core_errors_produce_conflicting_code():
-    """
-    اختبار انحدار (Regression Test): سجل فيه أكثر من خطأ جوهري بنفس الوقت
-    (هنا: customer_id مفقود + كمية سالبة) يجب أن يُصنَّف بكود
-    ERRORS_CONFLICTING_MULTIPLE وتُحفَظ كل الأسباب في quarantine_codes،
-    بدل التوقف عند أول خطأ وفقدان بقية الأسباب.
-    """
+    
     record = _base_record(
         customer_id="",
         items_json='[{"unit_price": 100, "qty": -2}]',
@@ -174,16 +138,14 @@ def test_multiple_core_errors_produce_conflicting_code():
 
 
 def test_single_core_error_does_not_use_conflicting_code():
-    """للتأكد أن ERRORS_CONFLICTING_MULTIPLE لا يظهر إلا عند وجود أكثر من سبب فعلي."""
+    
     record = _base_record(customer_id="")
     result = classify_record(record)
     assert result["quarantine_code"] != "ERRORS_CONFLICTING_MULTIPLE"
     assert result["quarantine_codes"] == ["ID_CUSTOMER_MISSING"]
 
 
-# --------------------------------------------------------------------------
-# إعادة حساب الإجمالي (TOTAL_RECOMPUTED)
-# --------------------------------------------------------------------------
+
 
 def test_mismatched_total_is_recomputed_from_items():
     """
@@ -192,7 +154,7 @@ def test_mismatched_total_is_recomputed_from_items():
     """
     record = _base_record(
         delivery_cost="500",
-        total_amount="9999",  # قيمة خاطئة عمدًا لا تطابق 5000*1 + 500
+        total_amount="9999",  
         items_json='[{"unit_price": 5000, "qty": 1}]',
     )
     result = classify_record(record)
@@ -202,16 +164,10 @@ def test_mismatched_total_is_recomputed_from_items():
     assert correction["corrected_value"] == 5500.0
 
 
-# --------------------------------------------------------------------------
-# اتساق البنية العامة (Consistency Contract)
-# --------------------------------------------------------------------------
+
 
 def test_result_always_has_exactly_one_final_status():
-    """
-    كل سجل يمر عبر classify_record يجب أن يقع في واحدة من ثلاث حالات
-    فقط بالضبط: valid, corrected, quarantined - أساس معادلة الاتساق
-    في القسم 6.11 من الوثيقة.
-    """
+    
     test_records = [
         _base_record(),
         _base_record(payment_amount="٥٠٠٠"),

@@ -1,14 +1,4 @@
-"""
-tests/test_cleaning_rules.py
-------------------------------
-اختبارات وحدة (Unit Tests) لكل قاعدة تنظيف فردية في src/quality_rules.py،
-تُشغَّل عبر pytest:
 
-    pytest tests/test_cleaning_rules.py -v
-
-تغطي القواعد الثمانية+ المطلوبة صراحة في القسم 6.6 من الوثيقة، كل قاعدة
-بحالة "يجب أن تُصحَّح" وحالة "غامضة يجب ألا تُخمَّن".
-"""
 
 import os
 import sys
@@ -26,9 +16,7 @@ from src.quality_rules import (
 )
 
 
-# --------------------------------------------------------------------------
-# 1) الأرقام العربية + فواصل الآلاف + السعر بالكلمات (clean_numeric_string)
-# --------------------------------------------------------------------------
+
 
 def test_arabic_digits_converted_to_latin():
     value, rule = clean_numeric_string("٥٠٠٠")
@@ -43,11 +31,7 @@ def test_thousand_separator_removed():
 
 
 def test_arabic_decimal_comma_not_multiplied_by_ten():
-    """
-    اختبار انحدار (Regression Test) لإصلاح حقيقي حصل أثناء التطوير:
-    "٧٠٦٠٠٠٫٠" (فاصلة عشرية عربية ٫) كانت تتحول خطأً إلى 7060000.0 بدل
-    706000.0 لأن ٫ لم تكن ضمن جدول ترجمة الأرقام العربية القديم.
-    """
+    
     value, rule = clean_numeric_string("٧٠٦٠٠٠٫٠")
     assert value == 706000.0
 
@@ -59,7 +43,7 @@ def test_known_price_word_converted():
 
 
 def test_unknown_price_word_not_guessed():
-    """كلمة سعر غير موجودة بالقاموس المعروف يجب ألا تُخمَّن أبدًا."""
+   
     value, rule = clean_numeric_string("كمية كبيرة جدًا")
     assert value is None
 
@@ -70,9 +54,7 @@ def test_empty_numeric_string_returns_none():
     assert rule is None
 
 
-# --------------------------------------------------------------------------
-# 2) رمز/اسم العملة (normalize_currency)
-# --------------------------------------------------------------------------
+
 
 def test_currency_yemeni_rial_name_normalized():
     value, rule = normalize_currency("لاير يمني")
@@ -83,19 +65,16 @@ def test_currency_yemeni_rial_name_normalized():
 def test_currency_already_normalized_no_rule_applied():
     value, rule = normalize_currency("YER")
     assert value == "YER"
-    assert rule is None  # لم تتغيّر القيمة، فلا داعي لتسجيل تصحيح
+    assert rule is None  
 
 
 def test_unknown_currency_not_guessed():
-    """عملة غير معروفة يجب أن تُترك كما هي دون تخمين."""
+    
     value, rule = normalize_currency("عملة غريبة")
     assert value == "عملة غريبة"
     assert rule is None
 
 
-# --------------------------------------------------------------------------
-# 3) رقم الهاتف (normalize_phone)
-# --------------------------------------------------------------------------
 
 def test_phone_with_country_code_and_spaces_normalized():
     value, rule = normalize_phone("+967 77 123 4567")
@@ -109,15 +88,13 @@ def test_phone_local_format_normalized():
 
 
 def test_phone_ambiguous_format_left_unchanged():
-    """رقم غير واضح الصيغة يجب ألا يُخمَّن، يُترك كما هو."""
+    
     value, rule = normalize_phone("12345")
     assert value == "12345"
     assert rule is None
 
 
-# --------------------------------------------------------------------------
-# 4) البريد الإلكتروني (fix_email)
-# --------------------------------------------------------------------------
+
 
 def test_email_repeated_at_symbol_fixed():
     value, rule = fix_email("user@@mail.com")
@@ -150,9 +127,7 @@ def test_email_none_is_unfixable():
     assert rule == "UNFIXABLE"
 
 
-# --------------------------------------------------------------------------
-# 5) التاريخ (normalize_date)
-# --------------------------------------------------------------------------
+
 
 def test_date_iso_format_normalized():
     value, rule = normalize_date("2025-01-31")
@@ -165,7 +140,7 @@ def test_date_slash_format_normalized():
 
 
 def test_date_impossible_day_rejected():
-    """تاريخ شكليًا يشبه تاريخًا لكنه غير منطقي فعليًا (لا يوجد يوم 40)."""
+    
     value, rule = normalize_date("2025-13-40")
     assert value is None
     assert rule == "DATE_IMPOSSIBLE_INVALID"
@@ -176,9 +151,7 @@ def test_date_none_is_impossible():
     assert rule == "DATE_IMPOSSIBLE_INVALID"
 
 
-# --------------------------------------------------------------------------
-# 6) المسافات والمرادفات (normalize_status_text)
-# --------------------------------------------------------------------------
+
 
 def test_status_synonym_mapped_to_standard_dictionary():
     value, rule = normalize_status_text("تم الدفع")
@@ -198,9 +171,7 @@ def test_status_unknown_value_left_as_is():
     assert value == "حالة غير معروفة"
 
 
-# --------------------------------------------------------------------------
-# 7) items_json (parse_items_json)
-# --------------------------------------------------------------------------
+
 
 def test_items_json_valid_parsed_correctly():
     items, error = parse_items_json('[{"unit_price": 100, "qty": 2}]')
@@ -225,9 +196,7 @@ def test_items_json_missing_detected():
     assert error == "JSON_ITEMS_CORRUPTED"
 
 
-# --------------------------------------------------------------------------
-# 8) إزالة BOM من أسماء المفاتيح (strip_bom_keys)
-# --------------------------------------------------------------------------
+
 
 def test_strip_bom_from_key_name():
     record = {"\ufefforder_id": "طلب-1", "customer_id": "ع-1"}
