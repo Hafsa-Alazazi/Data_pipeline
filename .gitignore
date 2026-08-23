@@ -1,0 +1,29 @@
+# Data files - too large for GitHub, and reproducible via create_small_sample.py
+data/*.csv
+!data/.gitkeep
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+env/
+
+# Spark / Hadoop local artifacts
+metastore_db/
+spark-warehouse/
+derby.log
+
+# IDE / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Environment variables (if you use a .env file for MONGO_URI etc.)
+.env
+
+# Reports: keep results.json (small, valuable evidence) but ignore raw screenshots
+# if they are large binary files you'd rather host elsewhere. Uncomment if needed:
+# reports/screenshots/*.png
