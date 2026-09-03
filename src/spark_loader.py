@@ -82,7 +82,18 @@ def load_spark(file_path: str, run_context: dict) -> dict:
         spark.read
         .option("header", True)
         .option("escape", '"')
-        .schema(ORDERS_CSV_SCHEMA)   
+
+        .option("enforceSchema", "false")
+        # إصلاح أمان مهم: enforceSchema=false يجبر Spark على مقارنة أسماء
+        # أعمدة الـ header الفعلية بالملف مع أسماء ORDERS_CSV_SCHEMA بنفس
+        # الترتيب، ويفشل بخطأ واضح لو غير متطابقة. الإعداد الافتراضي
+        # (enforceSchema=true) كان يتجاهل الـ header تمامًا ويربط القيم
+        # بالموقع (الترتيب) فقط - لو جاء ملف من مصدر آخر بنفس أسماء
+        # الأعمدة لكن بترتيب مختلف، كانت البيانات ستُقرأ بصمت وبشكل خاطئ
+        # تمامًا (مثلاً قيمة "currency" تُقرأ في عمود "payment_status")
+        # دون أي تحذير - وهذا أخطر بكثير من فشل صريح فورًا.
+        .schema(ORDERS_CSV_SCHEMA)   # Schema ثابتة، بدون inferSchema
+>>>>>>> d0597aa (Add Quick Start section and instructions for testing with a new data file)
         .csv(file_path)
         
     )
@@ -90,61 +101,78 @@ def load_spark(file_path: str, run_context: dict) -> dict:
     
     partitions_input = df.rdd.getNumPartitions()
 
-    read_rows = df.count()  
 
-    
-    df_with_meta = (
-        df
-        .withColumn("number_row_source", F.monotonically_increasing_id())
-        .withColumn("id_run", F.lit(run_context["id_run"]))
-        .withColumn("file_source", F.lit(run_context["file_path"]))
-        .withColumn("at_ingested", F.current_timestamp())
-        .withColumn("engine_used", F.lit("pyspark"))
-        .withColumn("record_raw", F.struct(*[F.col(c) for c in RAW_SOURCE_COLUMNS]))
-        .select(
-            "id_run", "file_source", "number_row_source",
-            "at_ingested", "engine_used", "record_raw",
+    try:
+        read_rows = df.count()  # Action أولى: تُفعّل القراءة الفعلية وتُحسب السجلات
+
+        # number_row_source: رقم صف تقريبي (ترتيب توزيعي عبر الـ partitions،
+        # وليس بالضرورة نفس ترتيب السطر الفعلي في الملف الأصلي - طبيعة أي
+        # نظام موزّع). الوثيقة تطلبه "إن أمكن" (القسم 6.5)، وهذا أفضل تقريب
+        # ممكن دون فرض ترتيب كلي (Global Order) يتطلب Shuffle مكلف وغير مبرر.
+        df_with_meta = (
+            df
+            .withColumn("number_row_source", F.monotonically_increasing_id())
+            .withColumn("id_run", F.lit(run_context["id_run"]))
+            .withColumn("file_source", F.lit(run_context["file_path"]))
+            .withColumn("at_ingested", F.current_timestamp())
+            .withColumn("engine_used", F.lit("pyspark"))
+            .withColumn("record_raw", F.struct(*[F.col(c) for c in RAW_SOURCE_COLUMNS]))
+            .select(
+                "id_run", "file_source", "number_row_source",
+                "at_ingested", "engine_used", "record_raw",
+            )
+>>>>>>> d0597aa (Add Quick Start section and instructions for testing with a new data file)
         )
-    )
 
-    print(f"[spark_loader] partitions_input (كما قرأها Spark تلقائيًا): {partitions_input}")
-    print(f"[spark_loader] read_rows: {read_rows:,}")
-    print(f"[spark_loader] بدء الكتابة المتوازية إلى MongoDB (orders_raw)...")
+        print(f"[spark_loader] partitions_input (كما قرأها Spark تلقائيًا): {partitions_input}")
+        print(f"[spark_loader] read_rows: {read_rows:,}")
+        print(f"[spark_loader] بدء الكتابة المتوازية إلى MongoDB (orders_raw)...")
 
-    write_start = time.time()
-    (
-        df_with_meta.write
-        .format("mongodb")
-        .mode("append")
-        .option("database", settings.MONGO_DB_NAME)
-        .option("collection", settings.COLLECTION_RAW)
-        .save()
-    )
-    write_elapsed = time.time() - write_start
+        write_start = time.time()
+        (
+            df_with_meta.write
+            .format("mongodb")
+            .mode("append")
+            .option("database", settings.MONGO_DB_NAME)
+            .option("collection", settings.COLLECTION_RAW)
+            .save()
+        )
+        write_elapsed = time.time() - write_start
 
-    elapsed = time.time() - start_time
-    throughput = round(read_rows / elapsed, 2) if elapsed > 0 else 0
+        elapsed = time.time() - start_time
+        throughput = round(read_rows / elapsed, 2) if elapsed > 0 else 0
 
-    summary = {
-        "id_run": run_context["id_run"],
-        "engine_used": "pyspark",
-        "read_rows": read_rows,
-        "loaded_raw": read_rows,  
-        "seconds_elapsed": round(elapsed, 2),
-        "write_seconds_elapsed": round(write_elapsed, 2),
-        "throughput_rows_per_sec": throughput,
-        "partitions_input": partitions_input,
-        "spark_master": settings.SPARK_MASTER,
-    }
+        summary = {
+            "id_run": run_context["id_run"],
+            "engine_used": "pyspark",
+            "read_rows": read_rows,
+            "loaded_raw": read_rows,  # append فقط، بدون فلترة جودة في هذه المرحلة (ELT)
+            "seconds_elapsed": round(elapsed, 2),
+            "write_seconds_elapsed": round(write_elapsed, 2),
+            "throughput_rows_per_sec": throughput,
+            "partitions_input": partitions_input,
+            "spark_master": settings.SPARK_MASTER,
+        }
 
-    print("-" * 60)
-    print("[spark_loader] ملخص التحميل النهائي:")
-    for key, value in summary.items():
-        print(f"    {key}: {value}")
-    print("-" * 60)
+        print("-" * 60)
+        print("[spark_loader] ملخص التحميل النهائي:")
+        for key, value in summary.items():
+            print(f"    {key}: {value}")
+        print("-" * 60)
 
-    spark.stop()
-    return summary
+        return summary
+    except Exception:
+        # لا نُخفي سبب الفشل أبدًا (القسم 9: معالجة الأخطاء دون إخفاء
+        # السبب) - نطبع رسالة واضحة، ثم نعيد رفع الاستثناء نفسه ليتوقف
+        # main.py بوضوح بدل الاستمرار ببيانات جزئية.
+        print("[spark_loader] ❌ فشل أثناء التحميل أو الكتابة بواسطة PySpark.")
+        raise
+    finally:
+        # يُغلق SparkSession دائمًا - سواء نجحت العملية أو فشلت - لمنع
+        # بقاء عمليات JVM معلّقة في الخلفية (القسم 9: إغلاق Spark وMongoDB
+        # بصورة سليمة عبر try/finally).
+        spark.stop()
+        print("[spark_loader] تم إغلاق SparkSession بأمان.")
 
 
 if __name__ == "__main__":

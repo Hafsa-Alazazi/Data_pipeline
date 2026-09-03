@@ -1,11 +1,32 @@
 # Hybrid Data Pipeline for Order Data Processing
 
+Midterm project for the Big Data course (Practical) | Al-Razi University
+AI Track, Level 4 | Instructor: Eng. Omar Abu Sind
+
 Builds a hybrid data pipeline that ingests a dirty e-commerce order CSV file,
 automatically chooses between **Python Batch Loading** (small files) and
 **Apache PySpark** (large files) based on file size, then applies an **ELT**
 pattern (load raw first, clean and classify afterwards), guaranteeing
 **Idempotency** and **Upsert** semantics on re-runs, and quarantining any
 record that cannot be safely corrected instead of dropping it.
+
+---
+
+## Quick Start
+
+```bash
+# 1) Install dependencies (Python 3.12 and Java 17 must already be installed - see Section 2)
+pip install -r requirements.txt
+
+# 2) Make sure MongoDB is running locally (verify via Compass or mongosh)
+
+# 3) Run the pipeline on any CSV file (small or large, engine chosen automatically)
+python main.py --input path/to/your_file.csv
+```
+
+Testing with a different data file than the one used to build this
+project? See Section 5 for column requirements and troubleshooting notes
+(including a Windows `python` vs `py` command note).
 
 ---
 
@@ -179,7 +200,45 @@ is the basis of guaranteeing Idempotency without relying on
 
 ---
 
-## 5. Running the Test Suite
+## 5. Running on a New / Unfamiliar Data File (e.g. instructor-provided)
+
+The original `data/orders_huge_mixed_quality.csv` is intentionally **not
+committed to this repository** (it is several gigabytes; see `.gitignore`).
+If you are testing this project with a different CSV file:
+
+```bash
+python main.py --input path/to/any_file.csv
+```
+
+`main.py` works on **any** CSV file, large or small — the engine (Python
+Batch vs PySpark) is chosen automatically based on that file's size alone.
+There is no requirement to use the exact original file name, and no other
+file needs to exist beforehand. The only requirement is that the file
+follows the same column structure this project was built for (`order_id`,
+`order_date`, `status`, `customer_id`, `customer_name`, `customer_phone`,
+`customer_email`, `city`, `district`, `delivery_type`, `delivery_cost`,
+`payment_method`, `payment_status`, `payment_amount`, `currency`,
+`total_amount`, `items_json`) — matching the header row `src/quality_rules.py`
+and the fixed schema in `src/spark_loader.py` expect. Data *values* can be
+arbitrarily dirty; column *names* need to match.
+
+If the provided file is large enough to trigger the PySpark path
+(Section 3d) and its columns are present but in a **different order** than
+listed above, `src/spark_loader.py` is configured to fail loudly with a
+clear schema-mismatch error rather than silently misaligning column values
+- rerun on the small-file threshold path (Python Batch, which matches
+columns by name regardless of order) or reorder the columns to match if
+this happens.
+
+**Troubleshooting `python` not found (Windows):** some Windows setups only
+register the `py` launcher, not a `python` alias, especially in a freshly
+opened terminal window. If any command below gives
+`'python' is not recognized as the name of a cmdlet...`, use `py` instead
+of `python` for every command in this document (e.g. `py main.py --input ...`).
+
+---
+
+## 6. Running the Test Suite
 
 Unit tests cover every individual cleaning rule (`tests/test_cleaning_rules.py`)
 and the full record classification logic (`tests/test_classification.py`),
@@ -195,7 +254,7 @@ not require MongoDB, Spark, or any network access to run.
 
 ---
 
-## 6. Project Structure
+## 7. Project Structure
 
 ```
 midterm-data-pipeline/
@@ -205,8 +264,9 @@ midterm-data-pipeline/
 |-- config/
 |   `-- settings.py                  # All configurable settings (no hardcoded values in code)
 |-- data/
-|   |-- orders_huge_mixed_quality.csv   # Original provided file (not committed, too large)
-|   `-- orders_sample_*.csv             # Samples generated via create_small_sample.py
+|   |-- .gitkeep                        # Placeholder only - see below
+|   |-- orders_huge_mixed_quality.csv   # NOT committed (too large, ~12GB) - place your own file anywhere and point --input at it
+|   `-- orders_sample_*.csv             # Also not committed - regenerate via create_small_sample.py if needed
 |-- src/
 |   |-- file_router.py               # Automatic engine selection based on size
 |   |-- create_small_sample.py       # Extracts a small sample (streaming, no Excel)
@@ -230,7 +290,7 @@ midterm-data-pipeline/
 
 ---
 
-## 7. MongoDB Collections
+## 8. MongoDB Collections
 
 | Collection | Content | Indexes |
 |---|---|---|
@@ -243,7 +303,7 @@ Default database name: `midterm_pipeline` (configurable via `MONGO_URI` and
 
 ---
 
-## 8. Important Performance Note (documented from real measurements)
+## 9. Important Performance Note (documented from real measurements)
 
 Actual measurements on real data from the original file:
 
@@ -264,7 +324,7 @@ Python multiprocessing instead of the current sequential loop).
 
 ---
 
-## 9. Explicitly Handled Error Cases
+## 10. Explicitly Handled Error Cases
 
 - A full batch failure in the Batch Loader: the reason is logged and never
   silently swallowed, and execution stops clearly (`try/except` without a
