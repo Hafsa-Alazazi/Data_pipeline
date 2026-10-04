@@ -1,6 +1,6 @@
 # Explain Report: Before vs After Indexes
 
-Generated automatically by `src/phase2/explain_report.py` against the live database at run time. All numbers below are real `executionStats` values from the actual data present when this report was generated - none are hardcoded.
+Generated automatically by `src/phase2/explain_report.py` against the live database at run time. All numbers below are real `executionStats` values from the actual data present when this report was generated - none are hardcoded. Each query is executed once as a warm-up and measured on the second run, so execution times are not skewed by cold disk/cache effects; documents examined is the most reliable metric.
 
 ## Indexes and why each one was chosen
 
@@ -20,14 +20,14 @@ Generated automatically by `src/phase2/explain_report.py` against the live datab
 |---|---|---|
 | Plan stages | LIMIT > COLLSCAN | LIMIT > FETCH > IXSCAN |
 | Index used | none | idx_status_payment_status |
-| Total docs examined | 551 | 50 |
+| Total docs examined | 31078 | 50 |
 | Total keys examined | 0 | 50 |
 | Documents returned | 50 | 50 |
-| Execution time (ms) | 3 | 12 |
+| Execution time (ms) | 40 | 0 |
 
 **Impact**
-- Documents examined: 551 -> 50 (about 11x fewer)
-- Execution time: 3 ms -> 12 ms
+- Documents examined: 31,078 -> 50 (about 622x fewer)
+- Execution time: 40 ms -> 0 ms
 
 ## Query: `find_top_orders_by_amount`
 - Index expected to be used: `idx_total_amount`
@@ -40,11 +40,11 @@ Generated automatically by `src/phase2/explain_report.py` against the live datab
 | Total docs examined | 1817865 | 10 |
 | Total keys examined | 0 | 10 |
 | Documents returned | 10 | 10 |
-| Execution time (ms) | 7571 | 18 |
+| Execution time (ms) | 2266 | 0 |
 
 **Impact**
 - Documents examined: 1,817,865 -> 10 (about 181,786x fewer)
-- Execution time: 7571 ms -> 18 ms
+- Execution time: 2266 ms -> 0 ms
 
 ## Query: `find_orders_by_customer`
 - Index expected to be used: `idx_customer_id`
@@ -57,8 +57,8 @@ Generated automatically by `src/phase2/explain_report.py` against the live datab
 | Total docs examined | 1817865 | 1 |
 | Total keys examined | 0 | 1 |
 | Documents returned | 1 | 1 |
-| Execution time (ms) | 3348 | 63 |
+| Execution time (ms) | 1918 | 1 |
 
 **Impact**
 - Documents examined: 1,817,865 -> 1 (about 1,817,865x fewer)
-- Execution time: 3348 ms -> 63 ms
+- Execution time: 1918 ms -> 1 ms
