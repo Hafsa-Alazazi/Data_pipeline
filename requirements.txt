@@ -1,5 +1,10 @@
-
 pymongo>=4.8.0
 pyspark>=4.0.0
 python-dotenv>=1.0.1
 pytest>=8.3.2
+
+# --- Final project (Phase 2) ---
+fastapi>=0.110.0
+uvicorn>=0.29.0
+python-multipart>=0.0.9
+apscheduler>=3.10.4,<4

@@ -1,9 +1,14 @@
-# Hybrid Data Pipeline for Order Data Processing
+# Hybrid Data Pipeline for Order Data Processing - Final Project (Phase 2)
 
-Midterm project for the Big Data course (Practical) | Al-Razi University
+Big Data course (Practical) | Al-Razi University
 AI Track, Level 4 | Instructor: Eng. Omar Abu Sind
 
-Builds a hybrid data pipeline that ingests a dirty e-commerce order CSV file,
+**Part 1 - Midterm:** the ELT data pipeline (Sections 1-10).
+**Part 2 - Final project:** MongoDB queries and indexes with Explain, aggregation
+reports, incremental materialized views, scheduled jobs and a unified FastAPI
+interface on top of the same pipeline (Section 11).
+
+The midterm pipeline builds a hybrid data pipeline that ingests a dirty e-commerce order CSV file,
 automatically chooses between **Python Batch Loading** (small files) and
 **Apache PySpark** (large files) based on file size, then applies an **ELT**
 pattern (load raw first, clean and classify afterwards), guaranteeing
@@ -12,17 +17,56 @@ record that cannot be safely corrected instead of dropping it.
 
 ---
 
-## Quick Start
+## Quick Start (copy and paste)
+
+Requirements: Python 3.12, Java 17 (needed by PySpark, see Section 2) and a
+running MongoDB (default `mongodb://localhost:27017`). On Windows use `py`
+instead of `python` if `python` is not recognized.
 
 ```bash
-# 1) Install dependencies (Python 3.12 and Java 17 must already be installed - see Section 2)
+# 1) Install dependencies
 pip install -r requirements.txt
 
-# 2) Make sure MongoDB is running locally (verify via Compass or mongosh)
+# 2) Optional: copy the config template (every value has a default; no secrets inside)
+cp .env.example .env                    # Windows: copy .env.example .env
 
-# 3) Run the pipeline on any CSV file (small or large, engine chosen automatically)
+# 3) Start the API (also starts the scheduled jobs)
+python -m uvicorn api:app --host 0.0.0.0 --port 8000
+```
+
+Open **http://localhost:8000/docs** (Swagger UI) and run the endpoints in this
+order - or use the `curl` commands below from a second terminal:
+
+```bash
+# 1) Load a CSV file through the midterm pipeline (use ANY order CSV file)
+curl -X POST http://localhost:8000/ingest -H "Content-Type: application/json" \
+     -d '{"input_path": "path/to/your_file.csv"}'
+# 2) Create the indexes
+curl -X POST http://localhost:8000/indexes
+# 3) Build / refresh the materialized views (run twice: the 2nd run finds nothing new)
+curl -X POST http://localhost:8000/refresh-mv
+# 4) Explore
+curl http://localhost:8000/health
+curl http://localhost:8000/queries
+curl http://localhost:8000/aggregations
+curl http://localhost:8000/aggregations/sales_by_city
+curl http://localhost:8000/jobs
+curl -X POST http://localhost:8000/jobs/refresh_materialized_views/run
+```
+
+> PowerShell: `curl` is an alias of `Invoke-WebRequest`; use `curl.exe`, or
+> simply use the Swagger UI at `/docs`, which needs no commands.
+
+Without the API, the midterm pipeline still runs directly from the command
+line on any CSV file (small or large, engine chosen automatically):
+
+```bash
 python main.py --input path/to/your_file.csv
 ```
+
+Details of every Phase 2 part (queries, indexes + Explain, aggregations,
+materialized views, jobs, endpoints) are in
+[Section 11](#11-final-project-phase-2).
 
 Testing with a different data file than the one used to build this
 project? See Section 5 for column requirements and troubleshooting notes
@@ -257,8 +301,10 @@ not require MongoDB, Spark, or any network access to run.
 ## 7. Project Structure
 
 ```
-midterm-data-pipeline/
+Data_pipeline/
 |-- main.py                          # The single unified entry point
+|-- api.py                           # FINAL PROJECT: unified FastAPI interface
+|-- .env.example                     # Environment variable template (no secrets)
 |-- README.md
 |-- requirements.txt
 |-- config/
@@ -275,7 +321,14 @@ midterm-data-pipeline/
 |   |-- quality_rules.py             # 8+ cleaning rules + audit trail + classification
 |   |-- elt_pipeline.py              # Consistency check + Upsert + Idempotency
 |   |-- mongo_setup.py               # Creates collections and indexes (unique on id_order)
-|   `-- metrics.py                   # Aggregates and saves metrics to results.json
+|   |-- metrics.py                   # Aggregates and saves metrics to results.json
+|   `-- phase2/                      # FINAL PROJECT additions (see Section 11)
+|       |-- queries.py               # 5 practical queries
+|       |-- indexes.py               # 5 indexes (1 compound)
+|       |-- explain_report.py        # executionStats before/after -> docs/explain_report.md
+|       |-- aggregations.py          # 5 aggregation reports
+|       |-- materialized_views.py    # 2 incremental materialized views
+|       `-- jobs.py                  # 2 scheduled jobs + run log
 |-- tests/
 |   |-- test_cleaning_rules.py       # 25 unit tests for individual cleaning rules
 |   |-- test_classification.py       # 18 tests for full-record classification logic
@@ -285,7 +338,8 @@ midterm-data-pipeline/
 |   |-- results.md                   # Batch vs PySpark comparison report
 |   `-- screenshots/                 # Spark UI and MongoDB Compass screenshots
 `-- docs/
-    `-- architecture.md
+    |-- architecture.md
+    `-- explain_report.md            # Generated: explain before/after indexes
 ```
 
 ---
@@ -335,3 +389,160 @@ Python multiprocessing instead of the current sequential loop).
   `run_raw_count = count_valid + count_corrected + count_quarantine`
   immediately halts execution (`AssertionError`) instead of continuing with
   inconsistent data.
+
+---
+
+## 11. Final Project (Phase 2)
+
+Phase 2 adds new functionality on top of the midterm pipeline **without
+changing it**. Everything runs against the `orders_validated` collection that
+the midterm pipeline produces, so **ingest data first** (Section 3, or
+`POST /ingest`). Nothing in Phase 2 depends on file names, record counts or
+fixed values: all numbers are computed from whatever data is in the database.
+
+### 11.1 Setup and running the API
+
+```bash
+pip install -r requirements.txt
+cp .env.example .env         # optional (Windows CMD / PowerShell: copy .env.example .env)
+# make sure MongoDB is running, then:
+python -m uvicorn api:app --host 0.0.0.0 --port 8000
+```
+
+> **Windows note:** if `pip` / `python` is not recognized in PowerShell, use the
+> `py` launcher instead: `py -m pip install -r requirements.txt` and
+> `py -m uvicorn api:app --port 8000`. Always prefer `python -m uvicorn` over
+> plain `uvicorn` (the latter is often missing from PATH).
+
+* Swagger UI: `http://localhost:8000/docs`
+* All responses are JSON.
+* The scheduler starts automatically with the API (set `ENABLE_SCHEDULER=false`
+  in `.env` to disable it).
+
+Recommended order for a fresh database:
+
+```text
+1. POST /ingest   {"input_path": "path/to/file.csv"}   -> loads orders_validated
+2. POST /indexes                                         -> creates the 5 indexes
+3. POST /refresh-mv                                      -> builds the materialized views
+4. GET  /queries, /aggregations, /jobs                   -> explore the results
+```
+
+### 11.2 API endpoints
+
+| Method | Path | Purpose |
+|---|---|---|
+| GET | `/health` | MongoDB connectivity, collection counts, scheduler state |
+| POST | `/ingest` | Body `{"input_path": "..."}` - runs the **same** midterm pipeline (`main.run_pipeline`) |
+| POST | `/ingest/upload` | Same pipeline, but the CSV is uploaded as a file (saved to `data/uploads/`) |
+| POST | `/indexes` | Creates the Phase 2 indexes (safe to repeat). `?with_explain=true` also regenerates `docs/explain_report.md` |
+| GET | `/queries` | Lists the 5 queries and their parameters |
+| GET | `/queries/{name}` | Runs a query; parameters as query string. `?explain=true` returns executionStats instead |
+| GET | `/aggregations` | Lists the 5 aggregation reports |
+| GET | `/aggregations/{name}` | Runs a report; optional parameters as query string |
+| POST | `/refresh-mv` | Incremental refresh of both materialized views. `?full=true` forces a full rebuild |
+| GET | `/jobs` | Scheduled jobs, their schedules, last run and recent run history |
+| POST | `/jobs/{name}/run` | Runs a job immediately (manual trigger, logged like a scheduled run) |
+
+Errors use proper HTTP codes: `404` unknown name/file, `400` missing or
+invalid parameter, `503` MongoDB unavailable.
+
+### 11.3 Queries (`src/phase2/queries.py`)
+
+| Name | Parameters | Example |
+|---|---|---|
+| `find_orders_by_city` | `city`, `limit` | `GET /queries/find_orders_by_city?city=<city>` |
+| `find_orders_by_date_range` | `start_date`, `end_date` (YYYY-MM-DD), `limit` | `GET /queries/find_orders_by_date_range?start_date=2025-01-01&end_date=2025-01-31` |
+| `find_orders_by_status_and_payment` | `status`, `payment_status`, `limit` | `GET /queries/find_orders_by_status_and_payment?status=<s>&payment_status=<p>` |
+| `find_top_orders_by_amount` | `limit` | `GET /queries/find_top_orders_by_amount?limit=10` |
+| `find_orders_by_customer` | `customer_id`, `limit` | `GET /queries/find_orders_by_customer?customer_id=<id>` |
+
+Dates are stored as ISO strings (`YYYY-MM-DDTHH:MM:SS`) in `orders_validated`,
+so range queries compare strings, which preserves chronological order.
+
+### 11.4 Indexes and Explain (`src/phase2/indexes.py`, `explain_report.py`)
+
+| Index | Keys | Serves | Why |
+|---|---|---|---|
+| `idx_city` | `city` | `find_orders_by_city` | Equality lookup |
+| `idx_order_date` | `order_date` | `find_orders_by_date_range` | Range scan instead of full collection scan |
+| `idx_status_payment_status` | `status, payment_status` (**Compound**) | `find_orders_by_status_and_payment` | Query filters on both fields together |
+| `idx_total_amount` | `total_amount` desc | `find_top_orders_by_amount` | Sorted index removes the in-memory sort |
+| `idx_customer_id` | `customer_id` | `find_orders_by_customer` | Frequent equality lookup |
+
+`explain("executionStats")` is run for **3 queries before and after** the
+indexes (status+payment, top by amount, by customer). Generate the report with:
+
+```bash
+python -m src.phase2.explain_report      # writes docs/explain_report.md
+# or: POST /indexes?with_explain=true
+```
+
+The script temporarily drops the Phase 2 indexes to measure the "before" state,
+then recreates them. It takes values (status, customer...) from the live data.
+Each query is executed once as a warm-up and measured on the second run, so
+cold-cache effects do not distort the timings; the number of documents
+examined is the most reliable metric. A sample report from the development run is in `docs/explain_report.md`.
+
+### 11.5 Aggregation reports (`src/phase2/aggregations.py`)
+
+| Name | Description | Optional params |
+|---|---|---|
+| `sales_by_city` | Total sales, order count, average order value per city | `limit` |
+| `top_products` | Best products by revenue and quantity | `limit` |
+| `top_customers` | Highest-spending customers | `limit` |
+| `sales_by_period` | Sales per month or day | `granularity=month\|day` |
+| `orders_by_status` | Order distribution by status | - |
+
+Run one with `GET /aggregations/{name}` or all of them from the command line:
+`python -m src.phase2.aggregations`.
+
+### 11.6 Materialized views (`src/phase2/materialized_views.py`)
+
+| View (collection) | Built from | Content |
+|---|---|---|
+| `daily_sales_summary` | `sales_by_period` (day) | Sales, order count, average order value per day |
+| `top_products_summary` | `top_products` | Quantity, revenue and order count per product |
+
+**Incremental refresh.** The midterm pipeline already sets `updated_at` on a
+record only when its content really changed (content-hash upsert). Each view
+keeps a *watermark* (`phase2_mv_meta`). A refresh finds only the records whose
+`updated_at` is newer than the watermark, determines which days / SKUs they
+affect, recomputes **only those** using the same aggregation pipelines, and
+upserts them. Untouched days and products are not recalculated. The first run
+(or an empty view, or `?full=true`) does a full build.
+
+```bash
+python -m src.phase2.materialized_views            # incremental
+python -m src.phase2.materialized_views --full     # full rebuild
+```
+
+Known limitation: if an existing order changes its date or its products, the
+old day/product keeps its previous value until a full refresh
+(`--full` or `POST /refresh-mv?full=true`).
+
+### 11.7 Scheduled jobs (`src/phase2/jobs.py`)
+
+| Job | Schedule (configurable in `.env`) | What it does |
+|---|---|---|
+| `refresh_materialized_views` | every `JOB_REFRESH_MV_EVERY_MINUTES` (15) | Incremental refresh of both views |
+| `periodic_report` | daily at `JOB_REPORT_HOUR:JOB_REPORT_MINUTE` (02:00) | Runs the 5 aggregations, stores the snapshot in MongoDB and exports `reports/periodic_reports/*.json` |
+
+Every run (scheduled or manual) is logged in the `phase2_job_runs` collection
+with job name, trigger, **start time, end time**, duration, **status
+(success/failed)** and the result or error.
+
+```bash
+# Manual runs for testing
+python -m src.phase2.jobs list
+python -m src.phase2.jobs run refresh_materialized_views
+python -m src.phase2.jobs run periodic_report
+python -m src.phase2.jobs history
+python -m src.phase2.jobs serve          # scheduler only, without the API
+# Or via the API: POST /jobs/{name}/run  and  GET /jobs
+```
+
+### 11.8 New MongoDB collections
+
+`daily_sales_summary`, `top_products_summary`, `phase2_mv_meta` (watermarks),
+`phase2_job_runs` (job log), `phase2_periodic_reports` (periodic snapshots).

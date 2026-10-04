@@ -1,0 +1,281 @@
+{
+  "generated_at": "2026-10-04T14:18:28.374588+00:00",
+  "reports": {
+    "sales_by_city": {
+      "description": "إجمالي المبيعات وعدد الطلبات ومتوسط قيمة الطلب لكل مدينة.",
+      "result_count": 10,
+      "results": [
+        {
+          "total_sales": 47767704000.0,
+          "order_count": 183135,
+          "city": "صنعاء",
+          "avg_order_value": 260833.29
+        },
+        {
+          "total_sales": 47676322000.0,
+          "order_count": 182398,
+          "city": "لحج",
+          "avg_order_value": 261386.21
+        },
+        {
+          "total_sales": 47451814500.0,
+          "order_count": 182197,
+          "city": "عدن",
+          "avg_order_value": 260442.35
+        },
+        {
+          "total_sales": 47327595500.0,
+          "order_count": 181353,
+          "city": "إب",
+          "avg_order_value": 260969.47
+        },
+        {
+          "total_sales": 47324818500.0,
+          "order_count": 181245,
+          "city": "الحديدة",
+          "avg_order_value": 261109.65
+        },
+        {
+          "total_sales": 47264058000.0,
+          "order_count": 181930,
+          "city": "المكلا",
+          "avg_order_value": 259792.55
+        },
+        {
+          "total_sales": 47198390500.0,
+          "order_count": 181054,
+          "city": "تعز",
+          "avg_order_value": 260686.81
+        },
+        {
+          "total_sales": 47107423000.0,
+          "order_count": 181436,
+          "city": "عمران",
+          "avg_order_value": 259636.58
+        },
+        {
+          "total_sales": 47016093500.0,
+          "order_count": 181453,
+          "city": "حجة",
+          "avg_order_value": 259108.93
+        },
+        {
+          "total_sales": 47001175500.0,
+          "order_count": 181664,
+          "city": "ذمار",
+          "avg_order_value": 258725.86
+        }
+      ]
+    },
+    "top_products": {
+      "description": "أكثر المنتجات مبيعًا من حيث الإيراد الكلي والكمية المباعة.",
+      "result_count": 10,
+      "results": [
+        {
+          "total_quantity_sold": 1191443,
+          "total_revenue": 264381701500.0,
+          "times_ordered": 603317,
+          "sku": "SKU-1010",
+          "name": "هاتف سامسونج A54"
+        },
+        {
+          "total_quantity_sold": 1190468,
+          "total_revenue": 132068134000.0,
+          "times_ordered": 602820,
+          "sku": "SKU-1007",
+          "name": "قرص SSD محمول"
+        },
+        {
+          "total_quantity_sold": 1194453,
+          "total_revenue": 34339708000.0,
+          "times_ordered": 604940,
+          "sku": "SKU-1005",
+          "name": "سماعات رأس"
+        },
+        {
+          "total_quantity_sold": 1189606,
+          "total_revenue": 11998611500.0,
+          "times_ordered": 602382,
+          "sku": "SKU-1008",
+          "name": "محول HDMI"
+        },
+        {
+          "total_quantity_sold": 1193004,
+          "total_revenue": 10823282500.0,
+          "times_ordered": 603841,
+          "sku": "SKU-1002",
+          "name": "فأرة لاسلكية"
+        },
+        {
+          "total_quantity_sold": 1192977,
+          "total_revenue": 9626693000.0,
+          "times_ordered": 603734,
+          "sku": "SKU-1009",
+          "name": "شاحن سريع"
+        },
+        {
+          "total_quantity_sold": 4546,
+          "total_revenue": 999731000.0,
+          "times_ordered": 2287,
+          "name": "هاتف سامسونج A54"
+        },
+        {
+          "total_quantity_sold": 4471,
+          "total_revenue": 500092000.0,
+          "times_ordered": 2251,
+          "name": "قرص SSD محمول"
+        },
+        {
+          "total_quantity_sold": 4629,
+          "total_revenue": 131362500.0,
+          "times_ordered": 2335,
+          "name": "سماعات رأس"
+        },
+        {
+          "total_quantity_sold": 4569,
+          "total_revenue": 46215500.0,
+          "times_ordered": 2279,
+          "name": "محول HDMI"
+        }
+      ]
+    },
+    "top_customers": {
+      "description": "أعلى العملاء إنفاقًا من حيث إجمالي المبلغ المدفوع وعدد الطلبات.",
+      "result_count": 10,
+      "results": [
+        {
+          "customer_name": "يوسف طارق",
+          "total_spent": 2247500.0,
+          "order_count": 1,
+          "customer_id": "عميل-237376"
+        },
+        {
+          "customer_name": "أروى محمد",
+          "total_spent": 2234000.0,
+          "order_count": 1,
+          "customer_id": "عميل-446510"
+        },
+        {
+          "customer_name": "أحمد محمد",
+          "total_spent": 2225000.0,
+          "order_count": 1,
+          "customer_id": "عميل-1168454"
+        },
+        {
+          "customer_name": "أحمد محمد",
+          "total_spent": 2190500.0,
+          "order_count": 1,
+          "customer_id": "عميل-1489898"
+        },
+        {
+          "customer_name": "أروى محمد",
+          "total_spent": 2189000.0,
+          "order_count": 1,
+          "customer_id": "عميل-1799958"
+        },
+        {
+          "customer_name": "سارة ياسر",
+          "total_spent": 2186000.0,
+          "order_count": 1,
+          "customer_id": "عميل-983107"
+        },
+        {
+          "customer_name": "يوسف طارق",
+          "total_spent": 2174000.0,
+          "order_count": 1,
+          "customer_id": "عميل-963914"
+        },
+        {
+          "customer_name": "أحمد محمد",
+          "total_spent": 2171000.0,
+          "order_count": 1,
+          "customer_id": "عميل-1934088"
+        },
+        {
+          "customer_name": "خالد سالم",
+          "total_spent": 2150000.0,
+          "order_count": 1,
+          "customer_id": "عميل-1043207"
+        },
+        {
+          "customer_name": "خالد سالم",
+          "total_spent": 2147000.0,
+          "order_count": 1,
+          "customer_id": "عميل-391362"
+        }
+      ]
+    },
+    "sales_by_period": {
+      "description": "إجمالي المبيعات وعدد الطلبات مجمّعة حسب الفترة الزمنية (شهر أو يوم).",
+      "result_count": 5,
+      "results": [
+        {
+          "total_sales": 120668874500.0,
+          "order_count": 463173,
+          "period": "2025-01"
+        },
+        {
+          "total_sales": 110727091000.0,
+          "order_count": 425302,
+          "period": "2025-02"
+        },
+        {
+          "total_sales": 121999093500.0,
+          "order_count": 468873,
+          "period": "2025-03"
+        },
+        {
+          "total_sales": 118272437000.0,
+          "order_count": 454700,
+          "period": "2025-04"
+        },
+        {
+          "total_sales": 1467899000.0,
+          "order_count": 5817,
+          "period": "2025-05"
+        }
+      ]
+    },
+    "orders_by_status": {
+      "description": "توزيع عدد الطلبات وقيمتها الإجمالية حسب حالة الطلب.",
+      "result_count": 7,
+      "results": [
+        {
+          "order_count": 301287,
+          "total_value": 78633516000.0,
+          "status": "cancelled"
+        },
+        {
+          "order_count": 301282,
+          "total_value": 78318449500.0,
+          "status": "قيد الشحن"
+        },
+        {
+          "order_count": 300583,
+          "total_value": 78144003500.0,
+          "status": "pending"
+        },
+        {
+          "order_count": 300471,
+          "total_value": 78166277000.0,
+          "status": "returned"
+        },
+        {
+          "order_count": 300139,
+          "total_value": 78113985000.0,
+          "status": "confirmed"
+        },
+        {
+          "order_count": 299989,
+          "total_value": 78043310000.0,
+          "status": "تم التسليم"
+        },
+        {
+          "order_count": 14114,
+          "total_value": 3715854000.0,
+          "status": "حالة غير معروفة تمامًا"
+        }
+      ]
+    }
+  }
+}

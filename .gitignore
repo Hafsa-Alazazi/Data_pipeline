@@ -27,3 +27,5 @@ Thumbs.db
 # Reports: keep results.json (small, valuable evidence) but ignore raw screenshots
 # if they are large binary files you'd rather host elsewhere. Uncomment if needed:
 # reports/screenshots/*.png
+# Uploaded files via POST /ingest/upload
+data/uploads/
