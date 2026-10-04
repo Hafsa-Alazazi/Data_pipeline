@@ -1,5 +1,12 @@
-
 import os
+
+# تحميل ملف .env (إن وُجد) من جذر المشروع قبل قراءة أي متغير بيئة.
+# python-dotenv اختياري هنا: غيابه لا يكسر المشروع، فقط لا يُقرأ .env.
+try:
+    from dotenv import load_dotenv
+    load_dotenv(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), ".env"))
+except ImportError:
+    pass
 
 SMALL_FILE_THRESHOLD_MB = float(os.getenv("SMALL_FILE_THRESHOLD_MB", 200))
 
@@ -27,4 +34,4 @@ RESULTS_JSON_PATH = os.path.join(REPORTS_DIR, "results.json")
 
 
 DEFAULT_CURRENCY = "YER"
-LOG_EVERY_N_BATCHES = int(os.getenv("LOG_EVERY_N_BATCHES", 1))  
+LOG_EVERY_N_BATCHES = int(os.getenv("LOG_EVERY_N_BATCHES", 1))
