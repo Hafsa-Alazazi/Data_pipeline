@@ -12,7 +12,11 @@ from pyspark.sql import functions as F
 from pyspark.sql.types import StructType, StructField, StringType
 
 
-
+# --------------------------------------------------------------------------
+# Schema ثابتة: كل الأعمدة كنص (String) عمدًا، لتُحفَظ القيم القذرة كما هي
+# في orders_raw دون أي فقدان أو تحويل مبكر (القسم 6.4 و 6.5).
+# الأسماء مطابقة حرفيًا لأعمدة ملف CSV الفعلي.
+# --------------------------------------------------------------------------
 ORDERS_CSV_SCHEMA = StructType([
     StructField("order_id", StringType(), True),
     StructField("order_date", StringType(), True),
@@ -37,7 +41,18 @@ RAW_SOURCE_COLUMNS = [f.name for f in ORDERS_CSV_SCHEMA.fields]
 
 
 def _ensure_hadoop_home_on_windows():
-    
+    """
+    إصلاح مشكلة Windows الشهيرة: Hadoop (المُستخدَم داخليًا بواسطة Spark
+    حتى للملفات المحلية البسيطة، وليس فقط HDFS) يفشل بدون HADOOP_HOME
+    يشير لمجلد فيه bin/winutils.exe، حتى في وضع local[*] تمامًا.
+
+    بدل الاعتماد على أن الشخص ضبط متغير بيئة النظام يدويًا بشكل صحيح
+    (عرضة للخطأ ولنسيانها وقت العرض المباشر أمام الدكتور - القسم 10)،
+    نضبطها هنا برمجيًا من داخل الكود نفسه إن لم تكن مضبوطة مسبقًا،
+    بشرط أن المجلد C:\\hadoop\\bin موجود فعلًا (جهّزه الطالب مسبقًا حسب
+    تعليمات التثبيت في README). هذا يجعل التشغيل يعمل "من نفسه" في أي
+    جلسة طرفية جديدة دون خطوات يدوية إضافية في كل مرة.
+    """
     if os.name != "nt":
         return  # هذا الإصلاح خاص بـ Windows فقط؛ لا أثر له على Linux/Mac
 
@@ -58,7 +73,20 @@ def _ensure_hadoop_home_on_windows():
 
 
 def build_spark_session() -> SparkSession:
-    
+    """
+    ينشئ SparkSession واحدة للتطبيق كاملاً.
+
+    settings.SPARK_MASTER الافتراضي هو "local[*]" (تشغيل فردي على كل
+    الأنوية المتاحة محليًا). للمسار المتقدم A (عنقود مستقل)، يُغيَّر عبر
+    متغير البيئة SPARK_MASTER إلى spark://IP_MASTER:7077 دون أي تعديل
+    على كود هذا الملف - هذا بالضبط سبب وضع القيمة في config/settings.py
+    بدل كتابتها مباشرة هنا (القسم 9: كل الإعدادات في Config).
+
+    ملاحظة Mongo Connector: يجب تفعيل الحزمة عبر spark.jars.packages أو
+    --packages عند التشغيل. الإصدار هنا (10.4.0 لـ Scala 2.13) يجب
+    التحقق من توافقه مع إصدار Spark/Scala المثبت فعليًا على الجهاز/العنقود
+    (PySpark 4.x يُبنى عادة مع Scala 2.13).
+    """
     _ensure_hadoop_home_on_windows()
 
     spark = (
@@ -69,12 +97,19 @@ def build_spark_session() -> SparkSession:
         .config("spark.jars.packages", "org.mongodb.spark:mongo-spark-connector_2.13:10.4.0")
         .getOrCreate()
     )
-    spark.sparkContext.setLogLevel("WARN")  
+    spark.sparkContext.setLogLevel("WARN")  # نقلل الضجيج، نبقي رسائلنا نحن واضحة
     return spark
 
 
 def load_spark(file_path: str, run_context: dict) -> dict:
-    
+    """
+    يقرأ ملف CSV الكبير عبر PySpark بالـ Schema الثابتة أعلاه، يبني وثيقة
+    orders_raw لكل صف (نفس الحقول الستة المطلوبة في القسم 6.5)، ويكتبها
+    بالتوازي إلى MongoDB عبر MongoDB Spark Connector.
+
+    يعيد ملخص مقاييس بنفس شكل batch_loader.load_batches تقريبًا (لتوحيد
+    الشكل في metrics.py)، مع إضافة partitions_input الخاصة بـ Spark.
+    """
     spark = build_spark_session()
     start_time = time.time()
 
@@ -82,7 +117,6 @@ def load_spark(file_path: str, run_context: dict) -> dict:
         spark.read
         .option("header", True)
         .option("escape", '"')
-
         .option("enforceSchema", "false")
         # إصلاح أمان مهم: enforceSchema=false يجبر Spark على مقارنة أسماء
         # أعمدة الـ header الفعلية بالملف مع أسماء ORDERS_CSV_SCHEMA بنفس
@@ -93,14 +127,21 @@ def load_spark(file_path: str, run_context: dict) -> dict:
         # تمامًا (مثلاً قيمة "currency" تُقرأ في عمود "payment_status")
         # دون أي تحذير - وهذا أخطر بكثير من فشل صريح فورًا.
         .schema(ORDERS_CSV_SCHEMA)   # Schema ثابتة، بدون inferSchema
->>>>>>> d0597aa (Add Quick Start section and instructions for testing with a new data file)
         .csv(file_path)
-        
+        # ملاحظة تصحيح مهمة: النسخة الأولى من هذا الملف كانت تستخدم
+        # .option("multiLine", True) بافتراض أن items_json قد يحتوي أسطرًا
+        # حقيقية داخل حقول مقتبسة. تحقّقنا فعليًا بعدّ الأسطر عبر Python
+        # (splitlines) مقابل عدّ الصفوف عبر csv.reader على نفس الملف،
+        # وتطابق الرقمان تمامًا (100001 = 100001) - أي لا توجد أي أسطر
+        # حقيقية داخل الحقول. multiLine=True كان يجبر Spark على قراءة
+        # الملف كوحدة واحدة غير قابلة للتجزئة (Non-Splittable)، فينتج عنه
+        # partition واحد فقط بغض النظر عن حجم الملف - أي معالجة تسلسلية
+        # فعليًا رغم استخدام Spark بالاسم! (بالضبط حالة الخصم المذكورة في
+        # القسم 13: "استخدام Spark بالاسم فقط..."). إزالته تعيد التوازي
+        # الحقيقي (Spark يقسّم الملف تلقائيًا حسب spark.sql.files.maxPartitionBytes).
     )
 
-    
     partitions_input = df.rdd.getNumPartitions()
-
 
     try:
         read_rows = df.count()  # Action أولى: تُفعّل القراءة الفعلية وتُحسب السجلات
@@ -121,7 +162,6 @@ def load_spark(file_path: str, run_context: dict) -> dict:
                 "id_run", "file_source", "number_row_source",
                 "at_ingested", "engine_used", "record_raw",
             )
->>>>>>> d0597aa (Add Quick Start section and instructions for testing with a new data file)
         )
 
         print(f"[spark_loader] partitions_input (كما قرأها Spark تلقائيًا): {partitions_input}")
@@ -176,7 +216,7 @@ def load_spark(file_path: str, run_context: dict) -> dict:
 
 
 if __name__ == "__main__":
-    
+    # اختبار مستقل لمحرك Spark وحده (دون المرور عبر main.py الكامل)
     import argparse
     from src.file_router import route_file
 
